@@ -12,6 +12,8 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"os"
+	"path"
 	"sort"
 	"strconv"
 	"strings"
@@ -690,6 +692,52 @@ func Decode(r io.Reader) (*Map, error) {
 	}
 
 	return m, nil
+}
+
+func LoadFile(filePath string, fileName string) (*Map, error) {
+	file, err := os.Open(path.Join(filePath, fileName))
+	if err != nil {
+		fmt.Println("failed to open tilemap")
+		return nil, err
+	}
+
+	tileMap, err := Decode(file)
+	if err != nil {
+		fmt.Println("failed to decode filemap")
+		return nil, err
+	}
+
+	if tileMap == nil {
+		fmt.Println("tilemap is empty")
+		return nil, errors.New("tilemap is empty")
+	}
+
+	if len(tileMap.TileSets) > 0 {
+		for i, ts := range tileMap.TileSets {
+			if ts.Source != "" {
+				// External TSX file
+				tilesetPath := path.Join("data", ts.Source)
+				tsxFile, err := os.Open(tilesetPath)
+				if err != nil {
+					fmt.Printf("failed to open tileset: %s\n", ts.Source)
+					return nil, err
+				}
+				defer tsxFile.Close()
+
+				fullTileset, err := DecodeTileset(tsxFile)
+				if err != nil {
+					fmt.Printf("failed to decode tileset: %s\n", ts.Source)
+					return nil, err
+				}
+
+				// Preserve the firstgid from the TMX <tileset> tag
+				fullTileset.FirstGlobalID = ts.FirstGlobalID
+				tileMap.TileSets[i] = *fullTileset
+			}
+		}
+	}
+
+	return tileMap, nil
 }
 
 // Same as Decode, but for TSX files
