@@ -716,7 +716,7 @@ func LoadFile(filePath string, fileName string) (*Map, error) {
 		for i, ts := range tileMap.TileSets {
 			if ts.Source != "" {
 				// External TSX file
-				tilesetPath := path.Join("data", ts.Source)
+				tilesetPath := path.Join(filePath, ts.Source)
 				tsxFile, err := os.Open(tilesetPath)
 				if err != nil {
 					fmt.Printf("failed to open tileset: %s\n", ts.Source)
