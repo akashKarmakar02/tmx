@@ -112,13 +112,70 @@ func (m *Map) LayerWithName(name string) *Layer {
 // ObjectGroupWithName retrieves the first ObjectGroup matching the provided
 // name. Returns `nil` if not found.
 func (m *Map) ObjectGroupWithName(name string) *ObjectGroup {
+	var group *ObjectGroup
+
+	// Find the object group by name
 	for i := range m.ObjectGroups {
 		if m.ObjectGroups[i].Name == name {
-			return &m.ObjectGroups[i]
+			group = &m.ObjectGroups[i]
+			break
 		}
 	}
 
-	return nil
+	if group == nil {
+		return nil // No group found
+	}
+
+	filteredObjects := make(Objects, 0, len(group.Objects))
+
+	for _, obj := range group.Objects {
+		if obj.GlobalID == 0 {
+			continue // Skip objects without valid GIDs
+		}
+
+		var matchedTileSet *TileSet
+		var localID uint32
+
+		for i := range m.TileSets {
+			ts := &m.TileSets[i]
+			if obj.GlobalID >= ts.FirstGlobalID && int(obj.GlobalID) < int(ts.FirstGlobalID)+ts.TileCount {
+				matchedTileSet = ts
+				localID = uint32(obj.GlobalID) - uint32(ts.FirstGlobalID)
+				break
+			}
+		}
+
+		if matchedTileSet == nil {
+			continue // GID didn't match any tileset
+		}
+
+		tile := matchedTileSet.TileWithID(TileID(localID))
+		if tile == nil || tile.Image.Source == "" {
+			continue // Tile or image source missing
+		}
+
+		parts := strings.Split(tile.Image.Source, "/")
+		if len(parts) < 3 {
+			continue // Ensure path has enough parts to trim
+		}
+
+		// Build image path safely
+		joined := strings.Join(parts[2:], "/")
+		obj.Image = Image{
+			Source:           joined,
+			Width:            tile.Image.Width,
+			Height:           tile.Image.Height,
+			Format:           tile.Image.Format,
+			ObjectID:         tile.Image.ObjectID,
+			TransparentColor: tile.Image.TransparentColor,
+			Data:             tile.Image.Data,
+		}
+
+		filteredObjects = append(filteredObjects, obj)
+	}
+
+	group.Objects = filteredObjects
+	return group
 }
 
 // TileSetWithName retrieves the first TileSet matching the provided name.
